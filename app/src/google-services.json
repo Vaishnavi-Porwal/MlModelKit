@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "332586938579",
+    "project_id": "ai-ml-d5a9c",
+    "storage_bucket": "ai-ml-d5a9c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:332586938579:android:63739028d104b8d0ad6426",
+        "android_client_info": {
+          "package_name": "com.example.mlmodelkit"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxJw5uDQ1j8zOTNXRZ5nQ0nlH_hfRIiyQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
