@@ -42,6 +42,12 @@
         android:layout_marginTop="16dp"
         android:scrollbars="vertical"/>
 
+    <Button
+        android:id="@+id/buttonExtract"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Extract Doctor Name"/>
+
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -50,7 +56,6 @@
         android:textSize="18sp"
         android:textColor="@color/black"
         android:layout_marginTop="12dp"/>
-
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -60,14 +65,6 @@
         android:textColor="@color/black"
         android:layout_marginTop="12dp"/>
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:id="@+id/dateText"
-        android:text="Date: "
-        android:textSize="18sp"
-        android:textColor="@color/black"
-        android:layout_marginTop="12dp"/>
 
     <Button
         android:layout_width="match_parent"

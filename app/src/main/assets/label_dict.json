@@ -1,9 +1,0 @@
-{
-    "O": 0,
-    "B-DATE": 1,
-    "B-DOCTOR": 2,
-    "B-HOSPITAL": 3,
-    "I-DATE": 4,
-    "I-DOCTOR": 5,
-    "I-HOSPITAL": 6
-}

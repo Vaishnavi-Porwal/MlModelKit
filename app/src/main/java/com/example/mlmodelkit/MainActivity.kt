@@ -1,13 +1,11 @@
 package com.example.mlmodelkit
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.text.method.ScrollingMovementMethod
-import android.util.Log
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
@@ -17,25 +15,14 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import org.tensorflow.lite.DataType
-import org.tensorflow.lite.Interpreter
-import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 import java.io.File
-import java.io.FileInputStream
 import java.io.IOException
-import java.nio.ByteBuffer
-import java.nio.MappedByteBuffer
-import java.nio.channels.FileChannel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -45,11 +32,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var cameraImage: ImageView
     private lateinit var captureImgBtn: Button
     private lateinit var resultText: TextView
-    private lateinit var doctorNameText: TextView
-    private lateinit var hospitalNameText: TextView
-    private lateinit var dateText: TextView
+    private lateinit var doctorName: TextView
+    private lateinit var hospitalName: TextView
+    private lateinit var button: Button
     private lateinit var copyTextBtn: Button
-    private lateinit var nerModel: NERModel
 
 
     private var currentPhotoPath: String? = null
@@ -61,15 +47,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.main_activity)
 
-        nerModel = NERModel(this)
-
         cameraImage = findViewById(R.id.cameraImage)
         captureImgBtn = findViewById(R.id.captureImgBtn)
         resultText = findViewById(R.id.resultText)
-        doctorNameText = findViewById(R.id.doctorNameText)
-        hospitalNameText = findViewById(R.id.hospitalNameText)
-        dateText = findViewById(R.id.dateText)
         copyTextBtn = findViewById(R.id.copyTxtBtn)
+        button=findViewById(R.id.buttonExtract)
+        doctorName=findViewById(R.id.doctorNameText)
+        hospitalName=findViewById(R.id.hospitalNameText)
 
 
         requestPermissionLauncher =
@@ -92,6 +76,9 @@ class MainActivity : ComponentActivity() {
             }
         captureImgBtn.setOnClickListener {
             requestPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+        }
+        button.setOnClickListener {
+            sendTextToModel(resultText.text.toString())
         }
     }
 
@@ -136,14 +123,6 @@ class MainActivity : ComponentActivity() {
             resultText.text = extractedText
             resultText.movementMethod = ScrollingMovementMethod()
 
-            CoroutineScope(Dispatchers.IO).launch {
-                val nerResults = nerModel.predict(extractedText)
-                withContext(Dispatchers.Main) {
-                    doctorNameText.text = "Doctor: ${nerResults["DOCTOR"] ?: "Not Found"}"
-                    hospitalNameText.text = "Hospital: ${nerResults["HOSPITAL"] ?: "Not Found"}"
-                    dateText.text = "Date: ${nerResults["DATE"] ?: "Not Found"}"
-                }
-            }
 
             copyTextBtn.visibility = Button.VISIBLE
             copyTextBtn.setOnClickListener {
@@ -161,111 +140,35 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Inner Class: NER Model Handler
-    class NERModel(private val context: Context) {
-        private var interpreter: Interpreter? = null
-        private var wordDict: Map<String, Int> = emptyMap()
-        private var labelDict: Map<Int, String> = emptyMap()
-
-        init {
-            loadModel()
-            loadDictionaries()
+    private fun sendTextToModel(text: String) {
+        if (text.isEmpty()) {
+            Toast.makeText(this, "No extracted text available", Toast.LENGTH_SHORT).show()
+            return
         }
-
-        private fun loadModel() {
-            try {
-                val assetFileDescriptor = context.assets.openFd("ner_model.tflite")
-                val fileInputStream = FileInputStream(assetFileDescriptor.fileDescriptor)
-                val fileChannel = fileInputStream.channel
-                val mappedByteBuffer: MappedByteBuffer =
-                    fileChannel.map(FileChannel.MapMode.READ_ONLY, assetFileDescriptor.startOffset, assetFileDescriptor.declaredLength)
-                interpreter = Interpreter(mappedByteBuffer)
-            } catch (e: IOException) {
-                Log.e("NERModel", "Error loading model", e)
-            }
-        }
-
-        private fun loadDictionaries() {
-            wordDict = loadWordDict()
-            labelDict = loadLabelDict()
-        }
-
-        private fun loadWordDict(): Map<String, Int> {
-            return try {
-                val jsonString = context.assets.open("word_dict.json").bufferedReader().use { it.readText() }
-                Gson().fromJson(jsonString, object : TypeToken<Map<String, Int>>() {}.type)
-            } catch (e: IOException) {
-                emptyMap()
-            }
-        }
-
-        private fun loadLabelDict(): Map<Int, String> {
-            return try {
-                val jsonString = context.assets.open("label_dict.json").bufferedReader().use { it.readText() }
-                val stringMap: Map<String, String> = Gson().fromJson(jsonString, object : TypeToken<Map<String, String>>() {}.type)
-
-                // Convert String keys to Integer keys safely
-                stringMap.mapNotNull { (key, value) -> key.toIntOrNull()?.let { it to value } }.toMap()
-
-            } catch (e: IOException) {
-                e.printStackTrace()
-                emptyMap()
-            } catch (e: NumberFormatException) {
-                e.printStackTrace()
-                emptyMap()
-            }
-        }
-
-        fun predict(text: String): Map<String, String> {
-            val words = text.lowercase().replace(".", "").split(Regex("\\s+|[,;]")).filter { it.isNotEmpty() }
-            val tokens = words.mapNotNull { wordDict[it] }
-
-            if (tokens.isEmpty()) {  //  Handle empty token list before running inference
-                Log.e("NERModel", "No valid tokens found. Returning empty result.")
-                return emptyMap()
-            }
-
-
-            val maxLength = 16
-            val paddedTokens = if (tokens.size < maxLength) {
-                tokens + List(maxLength - tokens.size) { 0 } // Padding
-            } else {
-                tokens.take(maxLength) // Truncate if too long
-            }
-            val inputArray = arrayOf(paddedTokens.map { it.toFloat() }.toFloatArray())
-
-            val numClasses = labelDict.size
-            val outputArray = Array(1) { Array(maxLength) { FloatArray(numClasses) } }
-
-            try {
-                interpreter?.run(inputArray, outputArray)
-            } catch (e: Exception) {
-                Log.e("NERModel", "TensorFlow Lite model inference failed", e)
-                return emptyMap()
-            }
-
-            val entityMap = mutableMapOf<String, String>()
-            var currentEntity = ""
-            var lastLabel = ""
-
-            for (i in 0 until words.size.coerceAtMost(maxLength)) {
-                val classIndex = outputArray[0][i].indices.maxByOrNull { outputArray[0][i][it] } ?: 0
-                val entityLabel = labelDict[classIndex] ?: "O"
-
-                if (entityLabel.startsWith("B-")) {
-                    lastLabel = entityLabel.substring(2)
-                    currentEntity = words[i]
-                } else if (entityLabel.startsWith("I-") && lastLabel == entityLabel.substring(2)) {
-                    currentEntity += " " + words[i]
-                } else if (currentEntity.isNotEmpty()) {
-                    entityMap[lastLabel] = currentEntity
-                    currentEntity = ""
-                    lastLabel = ""
+        val request = TextRequest(text)
+        RetrofitClient.instance.extractTextDetails(request)
+            .enqueue(object : Callback<TextExtractionResponse> {
+                override fun onResponse(
+                    call: Call<TextExtractionResponse>,
+                    response: Response<TextExtractionResponse>
+                ) {
+                    if (response.isSuccessful) {
+                        val doctorNames = response.body()?.doctor_names?.joinToString(", ") ?: "Not Found"
+                        val hospitalNames = response.body()?.hospital_names?.joinToString(", ") ?: "Not Found"
+                        doctorName.text = "Doctor: $doctorNames"
+                        hospitalName.text = "Hospital: $hospitalNames"
+                    } else {
+                        doctorName.text = "Error: ${response.message()}"
+                        hospitalName.text = "Error: ${response.message()}"
+                    }
                 }
-            }
-            return entityMap
-        }
 
+
+                override fun onFailure(call: Call<TextExtractionResponse>, t: Throwable) {
+                    doctorName.text = "Failed: ${t.message}"
+                    hospitalName.text = "Failed: ${t.message}"
+                }
+            })
     }
 }
 
